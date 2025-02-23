@@ -1,0 +1,11 @@
+# ninja log v5
+2	23740	1739713398136158093	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/sampling.o	abcee529111a8c93
+2	40665	1739713415072319920	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/sampling_gpu.o	efe18d5b6a6125c1
+1	42743	1739713417148339769	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/interpolate_gpu.o	9355af61691fe8d2
+1	42806	1739713417212340381	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/group_points_gpu.o	9d3cccdffb7a9214
+0	44231	1739713418636353998	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/ball_query_gpu.o	6b4a1fc9bf06f2de
+2	48703	1739713423092396616	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/pointnet2_api.o	227b267cdfdd2e34
+25	15682	1739713533981461077	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/group_points.o	ab4f4d93c8273a4c
+25	16052	1739713534353464660	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/sampling.o	abcee529111a8c93
+26	15000	1739713604334140074	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/interpolate.o	abe91bff5c265683
+25	15730	1739713707811143475	/workspace/pointdet/3DSSD-pytorch-openPCDet/pcdet/ops/pointnet2/pointnet2_3DSSD/build/temp.linux-x86_64-cpython-38/src/ball_query.o	724ca617051e026a

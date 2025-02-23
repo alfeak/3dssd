@@ -1,0 +1,27 @@
+# ninja log v5
+1	3201	1739713135877677902	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/iou3d_nms/src/iou3d_nms_kernel.o	181fb5caabb3d150
+1	22695	1739713200210281506	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/iou3d_nms/src/iou3d_nms_api.o	e33a87ed34735975
+0	25272	1739713202786305746	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/iou3d_nms/src/iou3d_nms.o	48b5941273dde5b6
+0	25323	1739713202838306235	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/iou3d_nms/src/iou3d_cpu.o	47ad3d4579d7e974
+6	1182	1739713204830324982	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/roiaware_pool3d/src/roiaware_pool3d_kernel.o	622a1eac59262b18
+6	22286	1739713225922523675	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/roiaware_pool3d/src/roiaware_pool3d.o	a54f382233e96555
+6	1198	1739713227866542005	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/roipoint_pool3d/src/roipoint_pool3d_kernel.o	ef41452035c87e42
+6	22334	1739713248990741372	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/roipoint_pool3d/src/roipoint_pool3d.o	bd307d3637f53bba
+6	16273	1739713265950901681	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/group_points.o	80b398143ffa5bee
+6	16429	1739713266106903157	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/ball_query.o	1de59de64b2ade19
+8	17004	1739713266682908605	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/sampling.o	aff1cad45ff35fdb
+7	17621	1739713267298914432	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/interpolate.o	34d664ccd8ced6e3
+8	32186	1739713281867052315	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/pointnet2_api.o	f98718b106fe26f4
+8	41090	1739713290771136664	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/sampling_gpu.o	84a4591b9e515306
+7	41641	1739713291323141896	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/group_points_gpu.o	4575cf134d2649e3
+6	45958	1739713295643182843	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/ball_query_gpu.o	f928a3fe2c9abf3
+7	46550	1739713296231188417	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_stack/src/interpolate_gpu.o	81c48b5e6f468a75
+6	15986	1739713313011347598	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/ball_query.o	d028205771831dd3
+7	16287	1739713313311350446	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/interpolate.o	48c3c768ed212b39
+8	16310	1739713313335350674	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/sampling.o	1f09280101a1fced
+7	16500	1739713313523352459	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/group_points.o	cccee895b7ef3c44
+8	36428	1739713333447541729	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/pointnet2_api.o	519f07bf3b71a728
+7	37390	1739713334419550969	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/group_points_gpu.o	3828e0bde1f81f31
+8	41925	1739713338955594101	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/sampling_gpu.o	8c782d980c237027
+7	44207	1739713341231615749	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/ball_query_gpu.o	3a07bc075e40abca
+8	45038	1739713342067623700	/workspace/pointdet/3DSSD-pytorch-openPCDet/build/temp.linux-x86_64-cpython-38/pcdet/ops/pointnet2/pointnet2_batch/src/interpolate_gpu.o	247eac39bcfefc1d
