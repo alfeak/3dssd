@@ -1,4 +1,3 @@
-LICENSE
 README.md
 setup.py
 pcdet/__init__.py
@@ -18,6 +17,7 @@ pcdet/models/backbones_2d/map_to_bev/height_compression.py
 pcdet/models/backbones_2d/map_to_bev/pointpillar_scatter.py
 pcdet/models/backbones_3d/SSD_backbone.py
 pcdet/models/backbones_3d/__init__.py
+pcdet/models/backbones_3d/pan_backbone.py
 pcdet/models/backbones_3d/pointnet2_backbone.py
 pcdet/models/backbones_3d/spconv_backbone.py
 pcdet/models/backbones_3d/spconv_unet.py
@@ -40,6 +40,7 @@ pcdet/models/detectors/PartA2_net.py
 pcdet/models/detectors/__init__.py
 pcdet/models/detectors/detector3d_template.py
 pcdet/models/detectors/point_3DSSD.py
+pcdet/models/detectors/point_PAN.py
 pcdet/models/detectors/point_rcnn.py
 pcdet/models/detectors/pointpillar.py
 pcdet/models/detectors/pv_rcnn.py
