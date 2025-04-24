@@ -1,4 +1,4 @@
-CLASS_NAMES: ['Car']
+CLASS_NAMES: ['Car', 'Pedestrian', 'Cyclist']
 
 DATA_CONFIG:
     _BASE_CONFIG_: cfgs/dataset_configs/kitti_dataset.yaml
@@ -26,7 +26,7 @@ MODEL:
         NAME: PANBackbone
         SA_CONFIG:
             NPOINTS: [[4096], [512], [256], [256], [-1], [256]]
-            NSAMPLE: [32, 32, 24, -1, -1, 24]
+            NSAMPLE: [32, 32, 32, -1, -1, 32]
             MLPS: [[64], [128], [256],[], [128], [512]]
             FPS_TYPE: [['D-FPS'], ['D-FPS'], ['D-FPS'], ['D-FPS'], [], ['D-FPS']]
             FPS_RANGE: [[-1], [-1], [-1], [-1], [-1], [-1]]

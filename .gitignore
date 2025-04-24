@@ -10,4 +10,4 @@ venv/
 *.pkl
 *.zip
 *.bin
-/data
+output/

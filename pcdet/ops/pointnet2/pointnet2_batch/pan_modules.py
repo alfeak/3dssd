@@ -75,32 +75,62 @@ class PointNorm(nn.Module):
         super(PointNorm, self).__init__()
         self.in_channels = in_channels
         self.alpha = nn.Parameter(torch.ones(1,in_channels,1,1))
-        self.beta = nn.Parameter(torch.zeros(1,in_channels,1,1))
+        self.eps = 1e-6
+
     def __repr__(self):
         return f"PointNorm(in_channels={self.in_channels})"
+
     def forward(self, points):
-        points0 = points
-        B,D,N,K = points.shape
-        anchor = points[:,:,:,0].unsqueeze(-1).repeat(1,1,1,K)
-        std = torch.std((points-anchor),dim=1,keepdim=True) #[b,n]
-        points = self.alpha * (points-anchor)/(std+1e-4) + self.beta + anchor
+
+        anchor = points[:,:,:,0].unsqueeze(-1)
+        points = points - anchor
+        mean = torch.mean(points, dim=(1,2,3), keepdim=True)
+        std = torch.std(points, dim=(1,2,3), keepdim=True)
+        points = (points - mean) / (std + self.eps)
+        points = points * self.alpha + anchor
+
         return points
 
-class setAggregation(nn.Module):
-    def __init__(self, in_channels, kneighbors, heads=8,**kwargs):
-        super(setAggregation, self).__init__()
-        self.in_channels = in_channels
+class maxpool(nn.Module):
+    def __init__(self,k):
+        super().__init__()
+        self.pool = nn.MaxPool2d((1,k))
+    def forward(self,x):
+        return self.pool(x).squeeze(-1)
+
+class avgpool(nn.Module):
+    def __init__(self,k):
+        super().__init__()
+        self.pool = nn.AvgPool2d((1,k))
+    def forward(self,x):
+        return self.pool(x).squeeze(-1)
+
+class set_conv(nn.Module):
+    def __init__(self, in_channels, out_channels,nsample):
+        super().__init__()
         self.conv = nn.Sequential(
-            nn.MaxPool2d(kernel_size=(1,heads)),
-            nn.Conv2d(in_channels, in_channels, kernel_size=1),
-            nn.BatchNorm2d(in_channels),
-            nn.ReLU(inplace=True),
-            nn.AvgPool2d((1,kneighbors//heads)),
+            PointNorm(in_channels),
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            # nn.ReLU(),
+            # nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
+            # nn.BatchNorm2d(out_channels),
         )
-        self.pool = nn.MaxPool2d(kernel_size=(1,kneighbors))
-    def forward(self, x):
-        x = self.conv(x) + self.pool(x)
-        return x.squeeze(-1)
+        self.conv1 = nn.Sequential(
+            nn.MaxPool2d((1,8)),
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            avgpool(nsample//8),
+        )
+        self.pool = maxpool(nsample)
+        self.act = nn.ReLU(inplace=True)
+
+    def forward(self,x):
+        x = self.conv(x)
+        return self.act(self.conv1(x) + self.pool(x))
 
 class PointConv(nn.Module):
     def __init__(self, in_channels, out_channels, npoint, kneighbors=32,fps_type='F-FPS',fps_range=-1,use_xyz=True,**kwargs):
@@ -111,29 +141,36 @@ class PointConv(nn.Module):
         self.in_channels = in_channels + 3 if use_xyz else in_channels
         self.out_channels = out_channels
         self.npoint = npoint
+        # self.radius = radius
         self.kneighbors = kneighbors
+
         if out_channels != -1:
-            # self.norm = PointNorm(self.in_channels)
-            self.conv = nn.Sequential(
-                nn.Conv2d(self.in_channels, out_channels, kernel_size=1),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(inplace=True),
-                setAggregation(out_channels, kneighbors),
-                nn.Conv1d(out_channels, out_channels, kernel_size=1),
-                nn.BatchNorm1d(out_channels),
+            self.convs = nn.Sequential(
+            set_conv(self.in_channels ,out_channels, kneighbors),
+            nn.Conv1d(out_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm1d(out_channels),
+            nn.ReLU(),
+            nn.Conv1d(out_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm1d(out_channels),
             )
-            self.conv1 = nn.Sequential(
-                nn.Conv1d(out_channels, out_channels,1),
+            self.skip_conv = nn.Sequential(
+                nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=False),
                 nn.BatchNorm1d(out_channels),
-                nn.ReLU(inplace=True),
-                nn.Conv1d(out_channels, out_channels,1),
-                nn.BatchNorm1d(out_channels),
-            )
-            # self.identity = nn.Sequential(
-            #         nn.Conv1d(in_channels, out_channels,1),
-            #         nn.BatchNorm1d(out_channels),
-            #     )#if in_channels != out_channels else nn.Identity()  # 更简洁的Identity
+            ) if in_channels != out_channels else nn.Identity()
+
             self.act = nn.ReLU(inplace=True)
+
+    def points_sorted(self,grouped_xyz: torch.Tensor = None,grouped_features: torch.Tensor = None, query_xyz: torch.Tensor = None) -> (torch.Tensor, torch.Tensor):
+        # decenter
+        grouped_xyz = grouped_xyz - query_xyz.transpose(1, 2).unsqueeze(-1)  # relative position
+        # normalize
+        # grouped_xyz /= self.radius
+        distance = torch.norm(grouped_xyz, dim=1)  # (B, npoint, nsample)
+        index = torch.argsort(distance, dim=-1)  # (B, npoint, nsample)
+        grouped_xyz = torch.gather(grouped_xyz, dim=-1, index=index.unsqueeze(1).repeat(1,3,1,1))  # (B, npoint, nsample, 3)
+        grouped_features = torch.gather(grouped_features, dim=-1, index=index.unsqueeze(1).repeat(1,grouped_features.shape[1],1,1))
+        return grouped_xyz, grouped_features
+
     def forward(self, xyz: torch.Tensor, features: torch.Tensor = None, ctr_xyz=None) -> (torch.Tensor, torch.Tensor):
         """
         :param xyz: (B, N, 3) tensor of the xyz coordinates of the features
@@ -187,17 +224,22 @@ class PointConv(nn.Module):
             fps_idxes = torch.cat(fps_idxes, dim=-1)
             new_xyz = pointnet2_utils.gather_operation(
                 xyz_flipped, fps_idxes).transpose(1, 2).contiguous() if self.npoint is not None else None
+
         if self.out_channels != -1:
             idx = knn_point(self.kneighbors, xyz, new_xyz).to(torch.int32)
+            # idx = pointnet2_utils.ball_query(self.radius, self.kneighbors, xyz, new_xyz).to(torch.int32)
+            grouped_xyz = pointnet2_utils.grouping_operation(xyz.transpose(1, 2).contiguous(), idx)
             grouped_features = pointnet2_utils.grouping_operation(features, idx)
+            grouped_xyz, grouped_features = self.points_sorted(grouped_xyz,grouped_features,new_xyz)
+
+            # print(grouped_xyz.shape, grouped_features.shape, new_xyz.shape, sampled_features.shape)
+            sampled_features = grouped_features[:,:,:,0]
+
+
             if self.use_xyz:
-                grouped_xyz = pointnet2_utils.grouping_operation(xyz.transpose(1, 2).contiguous(), idx)
-                grouped_xyz = grouped_xyz - new_xyz.transpose(1, 2).unsqueeze(-1)
                 grouped_features = torch.cat([grouped_xyz, grouped_features], dim=1)
-                # sampled_features = grouped_features[:,:,:,0].contiguous()
-            # grouped_features = self.norm(grouped_features)
-            new_features = self.act(self.conv(grouped_features))# + self.identity(sampled_features))
-            # new_features = self.act(self.conv1(new_features) + new_features)
+
+            new_features = self.act(self.convs(grouped_features) + self.skip_conv(sampled_features))
         else:
             new_features = pointnet2_utils.gather_operation(features, fps_idxes).contiguous()
         return new_xyz, new_features
@@ -239,37 +281,37 @@ class Vote_layer(nn.Module):
 if __name__ == "__main__":
     # pass
     # 1th layer input 16384,3 3,16384
-    layer = PointConv(3,64,[4096],24,fps_type=['D-FPS'],fps_range=[-1]).cuda()
+    layer = PointConv(3,64,[4096],radius=0.2,kneighbors=64,fps_type=['D-FPS'],fps_range=[-1]).cuda()
     data = torch.randn(3, 16384, 3).cuda()
     feature = torch.randn(3, 3, 16384).cuda()
     new_xyz, new_feature = layer(data, feature,None)
     print(new_xyz.shape, new_feature.shape)
 
-    # 2th layer input 4093,3 64,4096
-    layer = PointConv(64,128,[512],24,fps_type=['FS'],fps_range=[-1]).cuda()
-    data = torch.randn(3, 4096, 3).cuda()
-    feature = torch.randn(3, 64, 4096).cuda()
-    new_xyz, new_feature = layer(data, feature,None)
-    print(new_xyz.shape, new_feature.shape)
+    # # 2th layer input 4093,3 64,4096
+    # layer = PointConv(64,128,[512],24,fps_type=['FS'],fps_range=[-1]).cuda()
+    # data = torch.randn(3, 4096, 3).cuda()
+    # feature = torch.randn(3, 64, 4096).cuda()
+    # new_xyz, new_feature = layer(data, feature,None)
+    # print(new_xyz.shape, new_feature.shape)
 
-    # 3th layer input 1024,3 128,1024
-    layer = PointConv(128,256,[256, 256],24,fps_type=['F-FPS', 'D-FPS'],fps_range=[512, -1]).cuda()
-    data = torch.randn(3, 1024, 3).cuda()
-    feature = torch.randn(3, 128, 1024).cuda()
-    new_xyz, new_feature = layer(data, feature,None)
-    print(new_xyz.shape, new_feature.shape)
+    # # 3th layer input 1024,3 128,1024
+    # layer = PointConv(128,256,[256, 256],24,fps_type=['F-FPS', 'D-FPS'],fps_range=[512, -1]).cuda()
+    # data = torch.randn(3, 1024, 3).cuda()
+    # feature = torch.randn(3, 128, 1024).cuda()
+    # new_xyz, new_feature = layer(data, feature,None)
+    # print(new_xyz.shape, new_feature.shape)
 
-    # 4th layer input 512,3 256,512
-    layer = PointConv(256,-1,[256, 0],24,fps_type=['F-FPS', 'D-FPS'],fps_range=[256, -1]).cuda()
-    data = torch.randn(3, 512, 3).cuda()
-    feature = torch.randn(3, 256, 512).cuda()
-    new_xyz, new_feature = layer(data, feature,None)
-    print(new_xyz.shape, new_feature.shape)
+    # # 4th layer input 512,3 256,512
+    # layer = PointConv(256,-1,[256, 0],24,fps_type=['F-FPS', 'D-FPS'],fps_range=[256, -1]).cuda()
+    # data = torch.randn(3, 512, 3).cuda()
+    # feature = torch.randn(3, 256, 512).cuda()
+    # new_xyz, new_feature = layer(data, feature,None)
+    # print(new_xyz.shape, new_feature.shape)
     
-    # 6th layer input 512,3 256,512 256,3
-    layer = PointConv(256,256,[256],24,fps_type=['D-FPS'],fps_range=[-1]).cuda()
-    data = torch.randn(3, 512, 3).cuda()
-    feature = torch.randn(3, 256, 512).cuda()
-    ctx_xyz = torch.randn(3, 256, 3).cuda()
-    new_xyz, new_feature = layer(data, feature,ctx_xyz)
-    print(new_xyz.shape, new_feature.shape)
+    # # 6th layer input 512,3 256,512 256,3
+    # layer = PointConv(256,256,[256],24,fps_type=['D-FPS'],fps_range=[-1]).cuda()
+    # data = torch.randn(3, 512, 3).cuda()
+    # feature = torch.randn(3, 256, 512).cuda()
+    # ctx_xyz = torch.randn(3, 256, 3).cuda()
+    # new_xyz, new_feature = layer(data, feature,ctx_xyz)
+    # print(new_xyz.shape, new_feature.shape)
