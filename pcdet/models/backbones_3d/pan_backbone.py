@@ -8,10 +8,14 @@ class PANBackbone(nn.Module):
         super().__init__()
         self.model_cfg = model_cfg
 
+        # channel_in = input_channels
+        self.embedding = nn.Sequential(
+            nn.Conv1d(input_channels, 32, 1),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+        )
+        channel_out_list = [32]
         self.SA_modules = nn.ModuleList()
-        channel_in = input_channels
-        channel_out_list = [channel_in - 3]
-
         self.num_points_each_layer = []
 
         sa_config = self.model_cfg.SA_CONFIG
@@ -20,7 +24,6 @@ class PANBackbone(nn.Module):
         self.layer_names = self.model_cfg.SA_CONFIG.LAYER_NAME
         self.layer_inputs = self.model_cfg.SA_CONFIG.LAYER_INPUT
         self.max_translate_range = self.model_cfg.SA_CONFIG.MAX_TRANSLATE_RANGE
-
 
         for k in range(self.model_cfg.SA_CONFIG.NPOINTS.__len__()): #[1,64,128,256,256,512]
             channel_in = channel_out_list[self.layer_inputs[k]] # [1] [64] [128]
@@ -55,6 +58,28 @@ class PANBackbone(nn.Module):
         # features = pc[:, 1:].contiguous()
         return batch_idx, xyz, features
 
+    def pc_normalize(self, pc):
+        """
+        Normalize point cloud to unit sphere (zero mean, max radius 1)
+        Args:
+            pc: torch.Tensor of shape [B, 3, N] (batch of point clouds)
+        Returns:
+            Normalized point cloud with same shape
+        """
+        # Calculate centroid (mean along N dimension)
+        centroid = torch.mean(pc, dim=2, keepdim=True)  # [B, 3, 1]
+        # Center the point cloud
+        pc = pc - centroid
+        # Calculate max radius (norm of each point)
+        # We only normalize using XYZ coordinates (ignore 4th dimension if it exists)
+        norms = torch.norm(pc, p=2, dim=1)  # [B, N]
+        max_radius = torch.max(norms, dim=1, keepdim=True)[0].unsqueeze(1)  # [B, 1, 1]
+        # Avoid division by zero
+        max_radius = torch.clamp(max_radius, min=1e-8)
+        # Normalize all dimensions (including 4th if it exists)
+        pc = pc / max_radius
+        return pc
+
     def forward(self, batch_dict):
         """
         Args:
@@ -78,6 +103,8 @@ class PANBackbone(nn.Module):
         assert xyz_batch_cnt.min() == xyz_batch_cnt.max()
         xyz = xyz.view(batch_size, -1, 3)
         features = features.view(batch_size, -1, features.shape[-1]).permute(0, 2, 1) if features is not None else None
+        features = torch.cat([self.pc_normalize(xyz.permute(0,2,1)),features],dim=1)
+        features = self.embedding(features)
 
         encoder_xyz, encoder_features = [xyz], [features]
         for i in range(len(self.SA_modules)):

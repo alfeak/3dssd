@@ -112,9 +112,9 @@ class set_conv(nn.Module):
             PointNorm(in_channels),
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            # nn.ReLU(),
-            # nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
-            # nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
         )
         self.conv1 = nn.Sequential(
             nn.MaxPool2d((1,8)),
@@ -123,7 +123,7 @@ class set_conv(nn.Module):
             nn.ReLU(),
             nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            avgpool(nsample//8),
+            maxpool(nsample//8),
         )
         self.pool = maxpool(nsample)
         self.act = nn.ReLU(inplace=True)
@@ -301,12 +301,12 @@ if __name__ == "__main__":
     # new_xyz, new_feature = layer(data, feature,None)
     # print(new_xyz.shape, new_feature.shape)
 
-    # # 4th layer input 512,3 256,512
-    # layer = PointConv(256,-1,[256, 0],24,fps_type=['F-FPS', 'D-FPS'],fps_range=[256, -1]).cuda()
-    # data = torch.randn(3, 512, 3).cuda()
-    # feature = torch.randn(3, 256, 512).cuda()
-    # new_xyz, new_feature = layer(data, feature,None)
-    # print(new_xyz.shape, new_feature.shape)
+    # 4th layer input 512,3 256,512
+    layer = PointConv(256,-1,[256, 0],24,fps_type=['F-FPS', 'D-FPS'],fps_range=[256, -1]).cuda()
+    data = torch.randn(3, 512, 3).cuda()
+    feature = torch.randn(3, 256, 512).cuda()
+    new_xyz, new_feature = layer(data, feature,None)
+    print(new_xyz.shape, new_feature.shape)
     
     # # 6th layer input 512,3 256,512 256,3
     # layer = PointConv(256,256,[256],24,fps_type=['D-FPS'],fps_range=[-1]).cuda()

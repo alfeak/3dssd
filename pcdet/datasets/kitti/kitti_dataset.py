@@ -8,6 +8,7 @@ from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, calibration_kitti, common_utils, object3d_kitti
 from ..dataset import DatasetTemplate
 
+from tqdm import tqdm as tqdm
 
 class KittiDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
@@ -30,6 +31,7 @@ class KittiDataset(DatasetTemplate):
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
+        self.use_rgb = self.dataset_cfg.USE_RGB
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
@@ -60,14 +62,28 @@ class KittiDataset(DatasetTemplate):
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
     def get_lidar(self, idx):
-        lidar_file = self.root_split_path / 'velodyne' / ('%s.bin' % idx)
+        if self.use_rgb:
+            return self.get_lidar_rgb(idx)
+        else:
+            lidar_file = self.root_split_path / 'velodyne' / ('%s.bin' % idx)
+            assert lidar_file.exists()
+            return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
+
+    def get_lidar_rgb(self, idx):
+        lidar_file = self.root_split_path / 'velodyne_rgb' / ('%s.bin' % idx)
         assert lidar_file.exists()
-        return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
+        return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 7)
 
     def get_image_shape(self, idx):
         img_file = self.root_split_path / 'image_2' / ('%s.png' % idx)
         assert img_file.exists()
         return np.array(io.imread(img_file).shape[:2], dtype=np.int32)
+
+    def get_image(self, idx):
+        """获取对应索引的RGB图像"""
+        img_file = self.root_split_path / 'image_2' / ('%s.png' % idx)
+        assert img_file.exists()
+        return io.imread(img_file)  # 返回(H, W, 3)的uint8数组
 
     def get_label(self, idx):
         label_file = self.root_split_path / 'label_2' / ('%s.txt' % idx)
@@ -115,6 +131,64 @@ class KittiDataset(DatasetTemplate):
         pts_valid_flag = np.logical_and(val_flag_merge, pts_rect_depth >= 0)
 
         return pts_valid_flag
+
+    def project_points_to_image(self, points, calib, image_shape):
+        """将点云投影到图像平面并返回有效点索引"""
+        pts_rect = calib.lidar_to_rect(points[:, :3])
+        pts_img, pts_depth = calib.rect_to_img(pts_rect)
+        
+        # 计算有效点标志
+        val_flag_1 = np.logical_and(pts_img[:, 0] >= 0, pts_img[:, 0] < image_shape[1])
+        val_flag_2 = np.logical_and(pts_img[:, 1] >= 0, pts_img[:, 1] < image_shape[0])
+        val_flag_merge = np.logical_and(val_flag_1, val_flag_2)
+        val_flag_merge = np.logical_and(val_flag_merge, pts_depth > 0)
+        
+        return pts_img, val_flag_merge
+
+    def augment_point_cloud_with_rgb(self, idx, save_dir=None):
+        """
+        生成增强后的7维点云（x, y, z, intensity, r, g, b）
+        :param idx: 样本索引
+        :param save_dir: 保存目录（None则不保存）
+        :return: 7维点云数组
+        """
+        # 获取原始数据
+        points = self.get_lidar(idx)        # (N, 4)
+        calib = self.get_calib(idx)         # 标定信息
+        image = self.get_image(idx)         # (H, W, 3)
+        
+        # 投影点云到图像
+        pts_img, valid_flag = self.project_points_to_image(points, calib, image.shape[:2])
+        
+        # 提取有效点
+        valid_points = points[valid_flag]
+        valid_pts_img = pts_img[valid_flag].astype(int)
+        
+        # 初始化RGB通道
+        rgb = np.zeros((valid_points.shape[0], 3), dtype=np.float32)
+        
+        # 向量化获取像素值（注意y,x的索引顺序）
+        valid_y = np.clip(valid_pts_img[:, 1], 0, image.shape[0]-1)
+        valid_x = np.clip(valid_pts_img[:, 0], 0, image.shape[1]-1)
+        rgb[:] = image[valid_y, valid_x].astype(np.float32) # / 255.0
+        
+        # 合并有效数据
+        augmented_points = np.concatenate([valid_points, rgb], axis=1)  # (有效点数, 7)
+        
+        # 保存数据
+        if save_dir is not None:
+            save_dir.mkdir(parents=True, exist_ok=True)
+            save_path = save_dir / f'{idx}.bin'
+            augmented_points.astype(np.float32).tofile(save_path)
+        
+        return augmented_points
+
+    # 修改数据准备流程
+    def create_augmented_pointcloud(self, output_dir='velodyne_rgb'):
+        """批量生成增强点云"""
+        output_path = self.root_split_path / output_dir
+        for idx in tqdm(self.sample_id_list):
+            self.augment_point_cloud_with_rgb(idx, save_dir=output_path)
 
     def get_infos(self, num_workers=4, has_label=True, count_inside_pts=True, sample_id_list=None):
         import concurrent.futures as futures
@@ -437,3 +511,23 @@ if __name__ == '__main__':
             data_path=ROOT_DIR / 'data' / 'kitti',
             save_path=ROOT_DIR / 'data' / 'kitti'
         )
+    # 新增增强点云生成
+    if sys.argv.__len__() > 1 and sys.argv[1] == 'create_rgb_pointcloud':
+        import yaml
+        from pathlib import Path
+        from easydict import EasyDict
+        dataset_cfg = EasyDict(yaml.load(open(sys.argv[2]),Loader=yaml.FullLoader))
+        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
+        class_names=['Car', 'Pedestrian', 'Cyclist']
+        dataset = KittiDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=ROOT_DIR / 'data' / 'kitti', training=False)
+        dataset.use_rgb = False
+        dataset.set_split('train')
+        dataset.create_augmented_pointcloud()
+        
+        dataset.set_split('val')
+        dataset.create_augmented_pointcloud()
+
+        dataset.set_split('test')
+        dataset.create_augmented_pointcloud()
+        
+        print('RGB augmented pointcloud created!')
