@@ -7,18 +7,16 @@ class PANBackbone(nn.Module):
     def __init__(self, model_cfg, input_channels, **kwargs):
         super().__init__()
         self.model_cfg = model_cfg
+        self.use_rgb = self.model_cfg.USE_RGB
 
-        # channel_in = input_channels
-        self.embedding = nn.Sequential(
-            nn.Conv1d(input_channels, 32, 1),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-        )
-        channel_out_list = [32]
+        channel_in = input_channels if self.use_rgb else input_channels - 3
+        channel_out_list = [channel_in - 3]
         self.SA_modules = nn.ModuleList()
         self.num_points_each_layer = []
 
         sa_config = self.model_cfg.SA_CONFIG
+        
+        self.pc_range = self.model_cfg.POINT_CLOUD_RANGE
         self.layer_types = self.model_cfg.SA_CONFIG.LAYER_TYPE
         self.ctr_indexes = self.model_cfg.SA_CONFIG.CTR_INDEX
         self.layer_names = self.model_cfg.SA_CONFIG.LAYER_NAME
@@ -54,7 +52,10 @@ class PANBackbone(nn.Module):
     def break_up_pc(self, pc):
         batch_idx = pc[:, 0]
         xyz = pc[:, 1:4].contiguous()
-        features = (pc[:, 4:].contiguous() if pc.size(-1) > 4 else None)
+        if self.use_rgb:
+            features = (pc[:, 4:].contiguous() if pc.size(-1) > 4 else None)
+        else:
+            features = (pc[:, 4:5].contiguous() if pc.size(-1) > 4 else None)
         # features = pc[:, 1:].contiguous()
         return batch_idx, xyz, features
 
@@ -66,19 +67,68 @@ class PANBackbone(nn.Module):
         Returns:
             Normalized point cloud with same shape
         """
-        # Calculate centroid (mean along N dimension)
-        centroid = torch.mean(pc, dim=2, keepdim=True)  # [B, 3, 1]
-        # Center the point cloud
-        pc = pc - centroid
-        # Calculate max radius (norm of each point)
-        # We only normalize using XYZ coordinates (ignore 4th dimension if it exists)
-        norms = torch.norm(pc, p=2, dim=1)  # [B, N]
-        max_radius = torch.max(norms, dim=1, keepdim=True)[0].unsqueeze(1)  # [B, 1, 1]
-        # Avoid division by zero
-        max_radius = torch.clamp(max_radius, min=1e-8)
-        # Normalize all dimensions (including 4th if it exists)
-        pc = pc / max_radius
+        # POINT_CLOUD_RANGE: [x_min, y_min, z_min, x_max, y_max, z_max]
+        pc_range = torch.tensor([0, -40, -3, 70.4, 40, 1], device=pc.device, dtype=pc.dtype)
+        
+        # Calculate center of the POINT_CLOUD_RANGE
+        center = (pc_range[:3] + pc_range[3:]) / 2  # [x_center, y_center, z_center]
+        
+        # Shift points to be zero-centered (relative to the POINT_CLOUD_RANGE)
+        pc = pc - center.view(1, 1, 3)  # [B, 3, N] - [1, 3, 1] => subtract center from each point
+        
+        # Find the maximum distance from the center (to scale to unit sphere)
+        max_radius = torch.max(torch.norm(pc, dim=-1))  # [B, N] => global max radius
+        
+        # Normalize all points by the max radius (if max_radius > 0)
+        if max_radius > 0:
+            pc = pc / max_radius
+
         return pc
+
+    def range_encoded(self, xyz, feature):
+        """
+        POINT_CLOUD_RANGE: [0, -40, -3, 70.4, 40, 1]
+        feature: [b, 4, n] color: feature [:,1:,n]
+        xyz: [b, n, 3]
+        R = 70.4
+        range = torch.norm(xyz, p=2, dim=2)
+        color = range/ (R*255) * color
+        """
+        # 定义最大半径 R
+        R = 70.4
+        # 计算每个点到原点的欧式距离
+        range_ = torch.norm(xyz, p=2, dim=2)  # (b, n)
+        # 取原始RGB特征
+        color = feature[:, 1:, :]  # (b, 3, n)
+        range_scale = range_ / (R*255)
+        # 调整维度以便广播相乘
+        range_scale = range_scale.unsqueeze(1)  # (b, 1, n)
+        # 颜色根据range缩放
+        color_scaled = color * range_scale
+        # 合并强度和新的颜色
+        new_feature = torch.cat([feature[:, 0:1, :], color_scaled], dim=1)  # (b, 7, n)
+        return new_feature
+
+    def color_normalize(self, feature):
+        """
+        对输入特征中的颜色信息进行归一化处理。
+        假设颜色部分在 feature 中是第 1:4 个通道（RGB），形状为 (b, 3, n)，范围为 0-255。
+        """
+        color = feature[:, 1:, :]  # 提取颜色部分，shape: (b, 3, n)
+
+        # 将颜色值从 0-255 缩放到 0-1
+        color = color / 255.0
+
+        # 计算每个样本每个通道的均值和标准差
+        mean = color.mean(dim=2, keepdim=True)  # shape: (b, 3, 1)
+        std = color.std(dim=2, keepdim=True) + 1e-5  # 避免除以 0
+
+        # 标准化
+        normalized_color = (color - mean) / std  # shape: (b, 3, n)
+
+        # 替换回原始 feature 中
+        feature[:, 1:, :] = normalized_color
+        return feature
 
     def forward(self, batch_dict):
         """
@@ -103,8 +153,12 @@ class PANBackbone(nn.Module):
         assert xyz_batch_cnt.min() == xyz_batch_cnt.max()
         xyz = xyz.view(batch_size, -1, 3)
         features = features.view(batch_size, -1, features.shape[-1]).permute(0, 2, 1) if features is not None else None
-        features = torch.cat([self.pc_normalize(xyz.permute(0,2,1)),features],dim=1)
-        features = self.embedding(features)
+        if self.use_rgb:
+            # xyz_norm = self.pc_normalize(xyz)
+            features = self.range_encoded(xyz,features)
+            # features = self.color_normalize(features)
+        # features = torch.cat([self.pc_normalize(xyz.permute(0,2,1)),features],dim=1)
+        # features = self.embedding(features)
 
         encoder_xyz, encoder_features = [xyz], [features]
         for i in range(len(self.SA_modules)):

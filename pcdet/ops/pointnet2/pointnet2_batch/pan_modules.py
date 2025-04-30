@@ -75,6 +75,7 @@ class PointNorm(nn.Module):
         super(PointNorm, self).__init__()
         self.in_channels = in_channels
         self.alpha = nn.Parameter(torch.ones(1,in_channels,1,1))
+        self.beta = nn.Parameter(torch.zeros(1,in_channels,1,1))
         self.eps = 1e-6
 
     def __repr__(self):
@@ -84,10 +85,10 @@ class PointNorm(nn.Module):
 
         anchor = points[:,:,:,0].unsqueeze(-1)
         points = points - anchor
-        mean = torch.mean(points, dim=(1,2,3), keepdim=True)
-        std = torch.std(points, dim=(1,2,3), keepdim=True)
+        mean = torch.mean(points, dim=1, keepdim=True)
+        std = torch.std(points, dim=1, keepdim=True)
         points = (points - mean) / (std + self.eps)
-        points = points * self.alpha + anchor
+        points = points * self.alpha + self.beta + anchor
 
         return points
 
@@ -108,8 +109,9 @@ class avgpool(nn.Module):
 class set_conv(nn.Module):
     def __init__(self, in_channels, out_channels,nsample):
         super().__init__()
+        self.norm = PointNorm(in_channels) if in_channels >=32 else nn.Identity()
         self.conv = nn.Sequential(
-            PointNorm(in_channels),
+            # PointNorm(in_channels),
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
@@ -117,18 +119,20 @@ class set_conv(nn.Module):
             nn.BatchNorm2d(out_channels),
         )
         self.conv1 = nn.Sequential(
-            nn.MaxPool2d((1,8)),
+            # nn.MaxPool2d((1,8)),
             nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            maxpool(nsample//8),
+            # maxpool(nsample//8),
+            maxpool(nsample),
         )
         self.pool = maxpool(nsample)
         self.act = nn.ReLU(inplace=True)
 
     def forward(self,x):
+        x = self.norm(x)
         x = self.conv(x)
         return self.act(self.conv1(x) + self.pool(x))
 
@@ -230,11 +234,11 @@ class PointConv(nn.Module):
             # idx = pointnet2_utils.ball_query(self.radius, self.kneighbors, xyz, new_xyz).to(torch.int32)
             grouped_xyz = pointnet2_utils.grouping_operation(xyz.transpose(1, 2).contiguous(), idx)
             grouped_features = pointnet2_utils.grouping_operation(features, idx)
-            grouped_xyz, grouped_features = self.points_sorted(grouped_xyz,grouped_features,new_xyz)
+            # grouped_xyz, grouped_features = self.points_sorted(grouped_xyz,grouped_features,new_xyz)
+            grouped_xyz -= new_xyz.transpose(1, 2).unsqueeze(-1)
 
             # print(grouped_xyz.shape, grouped_features.shape, new_xyz.shape, sampled_features.shape)
             sampled_features = grouped_features[:,:,:,0]
-
 
             if self.use_xyz:
                 grouped_features = torch.cat([grouped_xyz, grouped_features], dim=1)
