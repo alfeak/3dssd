@@ -82,6 +82,7 @@ class PointNorm(nn.Module):
         return f"PointNorm(in_channels={self.in_channels})"
 
     def forward(self, points):
+        xyz, points = points[:,:3,:,:], points[:,3:,:,:]
 
         anchor = points[:,:,:,0].unsqueeze(-1)
         points = points - anchor
@@ -90,6 +91,7 @@ class PointNorm(nn.Module):
         points = (points - mean) / (std + self.eps)
         points = points * self.alpha + self.beta + anchor
 
+        points = torch.cat([xyz,points],dim=1)
         return points
 
 class maxpool(nn.Module):
@@ -109,9 +111,8 @@ class avgpool(nn.Module):
 class set_conv(nn.Module):
     def __init__(self, in_channels, out_channels,nsample):
         super().__init__()
-        self.norm = PointNorm(in_channels) if in_channels >=32 else nn.Identity()
         self.conv = nn.Sequential(
-            # PointNorm(in_channels),
+            PointNorm(in_channels-3),
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
