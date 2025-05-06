@@ -2,8 +2,6 @@ CLASS_NAMES: ['Car']
 
 DATA_CONFIG:
     _BASE_CONFIG_: cfgs/dataset_configs/kitti_dataset.yaml
-
-    USE_RGB: False
     
     DATA_PROCESSOR:
         -   NAME: mask_points_and_boxes_outside_range
@@ -26,6 +24,7 @@ MODEL:
 
     BACKBONE_3D:
         NAME: PANBackbone
+        USE_RGB: False
         SA_CONFIG:
             NPOINTS: [[4096], [512], [256, 256], [256, 0], [-1], [256]]
             NSAMPLE: [32, 32, 32, 32, [], 32]

@@ -16,7 +16,6 @@ class PANBackbone(nn.Module):
 
         sa_config = self.model_cfg.SA_CONFIG
         
-        self.pc_range = self.model_cfg.POINT_CLOUD_RANGE
         self.layer_types = self.model_cfg.SA_CONFIG.LAYER_TYPE
         self.ctr_indexes = self.model_cfg.SA_CONFIG.CTR_INDEX
         self.layer_names = self.model_cfg.SA_CONFIG.LAYER_NAME
@@ -58,32 +57,6 @@ class PANBackbone(nn.Module):
             features = (pc[:, 4:5].contiguous() if pc.size(-1) > 4 else None)
         # features = pc[:, 1:].contiguous()
         return batch_idx, xyz, features
-
-    def pc_normalize(self, pc):
-        """
-        Normalize point cloud to unit sphere (zero mean, max radius 1)
-        Args:
-            pc: torch.Tensor of shape [B, 3, N] (batch of point clouds)
-        Returns:
-            Normalized point cloud with same shape
-        """
-        # POINT_CLOUD_RANGE: [x_min, y_min, z_min, x_max, y_max, z_max]
-        pc_range = torch.tensor([0, -40, -3, 70.4, 40, 1], device=pc.device, dtype=pc.dtype)
-        
-        # Calculate center of the POINT_CLOUD_RANGE
-        center = (pc_range[:3] + pc_range[3:]) / 2  # [x_center, y_center, z_center]
-        
-        # Shift points to be zero-centered (relative to the POINT_CLOUD_RANGE)
-        pc = pc - center.view(1, 1, 3)  # [B, 3, N] - [1, 3, 1] => subtract center from each point
-        
-        # Find the maximum distance from the center (to scale to unit sphere)
-        max_radius = torch.max(torch.norm(pc, dim=-1))  # [B, N] => global max radius
-        
-        # Normalize all points by the max radius (if max_radius > 0)
-        if max_radius > 0:
-            pc = pc / max_radius
-
-        return pc
 
     def range_encoded(self, xyz, feature):
         """
@@ -154,10 +127,8 @@ class PANBackbone(nn.Module):
         xyz = xyz.view(batch_size, -1, 3)
         features = features.view(batch_size, -1, features.shape[-1]).permute(0, 2, 1) if features is not None else None
         if self.use_rgb:
-            # xyz_norm = self.pc_normalize(xyz)
             features = self.range_encoded(xyz,features)
             # features = self.color_normalize(features)
-        # features = torch.cat([self.pc_normalize(xyz.permute(0,2,1)),features],dim=1)
         # features = self.embedding(features)
 
         encoder_xyz, encoder_features = [xyz], [features]
