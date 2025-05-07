@@ -1,8 +1,17 @@
 import argparse
 import glob
 from pathlib import Path
+import os
 
-import mayavi.mlab as mlab
+try:
+    import open3d
+    from visual_utils import open3d_vis_utils as V
+    OPEN3D_FLAG = True
+except:
+    import mayavi.mlab as mlab
+    from visual_utils import visualize_utils as V
+    OPEN3D_FLAG = False
+
 import numpy as np
 import torch
 
@@ -10,9 +19,8 @@ from pcdet.config import cfg, cfg_from_yaml_file
 from pcdet.datasets import DatasetTemplate
 from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
-from visual_utils import visualize_utils as V
 
-
+print("OPEN3D_FLAG :", OPEN3D_FLAG)
 class DemoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
         """
@@ -61,7 +69,7 @@ def parse_config():
                         help='specify the point cloud data file or directory')
     parser.add_argument('--ckpt', type=str, default=None, help='specify the pretrained model')
     parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
-
+    parser.add_argument("--save_dir",type=str,default="../visual_dump",help="res output to dir file")
     args = parser.parse_args()
 
     cfg_from_yaml_file(args.cfg_file, cfg)
@@ -71,6 +79,10 @@ def parse_config():
 
 def main():
     args, cfg = parse_config()
+    save_dir = args.save_dir # 保存目录
+    os.makedirs(save_dir, exist_ok=True)
+    filename = os.path.basename(args.data_path).split(".")[0]
+    
     logger = common_utils.create_logger()
     logger.info('-----------------Quick Demo of OpenPCDet-------------------------')
     demo_dataset = DemoDataset(
@@ -90,13 +102,30 @@ def main():
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 
-            V.draw_scenes(
-                points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
-                ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
-            )
-            mlab.show(stop=True)
+            # 转 numpy
+            points = data_dict['points'][:, 1:].cpu().numpy()  # [N, 3]
+            gt_boxes = data_dict.get('gt_boxes', None)
+            frame_id = data_dict.get('frame_id', [''])[0]
 
-    logger.info('Demo done.')
+            np.savez_compressed(
+                os.path.join(save_dir, f'{filename}.npz'),
+                points=points,
+                gt_boxes=None if gt_boxes is None else gt_boxes.cpu().numpy(),
+                pred_boxes=pred_dicts[0]['pred_boxes'].cpu().numpy(),
+                pred_scores=pred_dicts[0]['pred_scores'].cpu().numpy(),
+                pred_labels=pred_dicts[0]['pred_labels'].cpu().numpy(),
+                frame_id=frame_id
+            )
+            # V.draw_scenes(
+            #     points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
+            #     ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
+            # )
+
+            # if not OPEN3D_FLAG:
+            #     mlab.show(stop=True)
+
+    # logger.info('Demo done.')
+    logger.info('Demo done. Saved all samples for local visualization.')
 
 
 if __name__ == '__main__':

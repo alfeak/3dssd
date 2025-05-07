@@ -26,11 +26,11 @@ MODEL:
         NAME: PANBackbone
         USE_RGB: False
         SA_CONFIG:
-            NPOINTS: [[4096], [512], [256, 256], [256, 0], [-1], [256]]
-            NSAMPLE: [32, 32, 32, 32, [], 32]
+            NPOINTS: [[4096], [1024], [512, 512], [512, 0], [-1], [512]]
+            NSAMPLE: [24, 24, 24, 24, [], 24]
             MLPS: [[64], [128], [256], [], [128], [512]]    #if mlps == [] toggle pan_modules out_channel == -1 only sample no other convs
             FPS_TYPE: [['D-FPS'], ['FS'], ['F-FPS', 'D-FPS'], ['F-FPS', 'D-FPS'], [], ['D-FPS']]
-            FPS_RANGE: [[-1], [-1], [512, -1], [256, -1], [-1], [-1]]
+            FPS_RANGE: [[-1], [-1], [1024, -1], [512, -1], [-1], [-1]]
             LAYER_TYPE: ['SA_Layer', 'SA_Layer', 'SA_Layer', 'SA_Layer','Vote_Layer', 'SA_Layer']
             LAYER_NAME: ['layer1', 'layer2', 'layer3', 'vote', 'vote', 'layer4']
             CTR_INDEX: [-1, -1, -1, -1, -1, 5]

@@ -1,4 +1,5 @@
 import mayavi.mlab as mlab
+mlab.options.offscreen = True  # ✅ 启用无头渲染
 import numpy as np
 import torch
 
@@ -167,6 +168,10 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_scores=None, ref_labe
                 mask = (ref_labels == k)
                 fig = draw_corners3d(ref_corners3d[mask], fig=fig, color=cur_color, cls=ref_scores[mask], max_num=100)
     mlab.view(azimuth=-179, elevation=54.0, distance=104.0, roll=90.0)
+    mlab.view(azimuth=-179, elevation=54.0, distance=104.0, roll=90.0)
+    mlab.savefig("scene.png")     # ✅ 保存图片
+    mlab.close(fig)               # ✅ 关闭窗口释放资源
+
     return fig
 
 

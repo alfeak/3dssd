@@ -106,7 +106,7 @@ class set_conv(nn.Module):
     def __init__(self, in_channels, out_channels,nsample):
         super().__init__()
         self.conv = nn.Sequential(
-            PointNorm(in_channels),
+            # PointNorm(in_channels),
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
@@ -114,13 +114,11 @@ class set_conv(nn.Module):
             nn.BatchNorm2d(out_channels),
         )
         self.conv1 = nn.Sequential(
-            # nn.MaxPool2d((1,8)),
             nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            # maxpool(nsample//8),
             maxpool(nsample),
         )
         self.pool = maxpool(nsample)
