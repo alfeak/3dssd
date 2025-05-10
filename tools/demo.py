@@ -46,9 +46,8 @@ class DemoDataset(DatasetTemplate):
 
     def __getitem__(self, index):
         if self.ext == '.bin':
-            # points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 4)
-            # points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 7)[:,:4]
-            points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 7)
+            points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 4)
+            # points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 7)
         elif self.ext == '.npy':
             points = np.load(self.sample_file_list[index])
         else:
